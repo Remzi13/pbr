@@ -1,6 +1,5 @@
 #include <fstream>
 #include <iostream>
-#include <sstream>
 #include <vector>
 
 #include <algorithm>
@@ -223,12 +222,13 @@ Vector3 trace(const math::Ray &ray, const Scene &scene, int depth) {
 //			if (t < tMax)
 //			{
 //				hitNormal = unit_vector(cross(tr.b - tr.a, tr.c
-//- tr.a)); 				tMax = t; 				matIndex = tr.matIndex;
+//- tr.a)); 				tMax = t;
+//matIndex = tr.matIndex;
 //			}
 //		}
 //
 //		if (matIndex == -1 || tMax == 10000.0f) // matIndex == -1 -
-//более явная проверка на промах
+// более явная проверка на промах
 //		{
 //			radiance += throughput * scene.enviroment();
 //			break;
@@ -258,7 +258,7 @@ Vector3 trace(const math::Ray &ray, const Scene &scene, int depth) {
 //
 //
 //		const Vector3 newOrig = ray.origin + ray.direction * tMax +
-//newDir * 1e-4f;
+// newDir * 1e-4f;
 //
 //		ray.origin = newOrig;
 //		ray.direction = newDir;

@@ -5,6 +5,8 @@ project(pbr CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include_directories("src")
+
 set(SRC
     src/vector.h
     src/matrix.h
@@ -15,7 +17,6 @@ set(SRC
     src/concurrency.h
     src/concurrency.cpp
     src/bvh.h
-    src/bvh.cpp
     src/brdf.h
     src/brdf.cpp
     src/gltf.h

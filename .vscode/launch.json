@@ -7,7 +7,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/pbr",
             "args": [],
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/build",
             "preLaunchTask": "CMake Build"
         }
     ]

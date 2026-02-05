@@ -71,7 +71,7 @@ Vector3 BRDF(const Vector3& inputAlbedo, float metallic, float roughness, const 
 	roughness = std::max(roughness, 0.005f);
 
 	// Avoid division by 0 in GGX formula in case NdotV == 0
-	const float  NdotV = saturate(abs(dot(N, V)) + 1e-5f);
+	const float  NdotV = saturate(std::abs(dot(N, V)) + 1e-5f);
 	const float NdotH = saturate(dot(N, H));
 	const float LdotH = saturate(dot(L, H));
 
