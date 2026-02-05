@@ -1,7 +1,6 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
-
 #include <algorithm>
 #include <chrono>
 
@@ -14,7 +13,8 @@
 
 float srgb(float x) { return std::pow(x, 1.f / 2.2f); }
 
-Vector3 tonemapping(const Vector3 &color) {
+Vector3 tonemapping(const Vector3 &color) 
+{
   return Vector3(std::min(1.0f, color.x()), std::min(1.0f, color.y()),
                  std::min(1.0f, color.z()));
 }
@@ -64,7 +64,8 @@ void saveImageToFile(std::uint16_t width, std::uint16_t height,
 
 // можно использовать точку и дистанцию
 float intersectPlane(const math::Ray &ray, Vector3 poinOnPlane,
-                     Vector3 normPlane, float tMin, float tMax) {
+                     Vector3 normPlane, float tMin, float tMax) 
+{
   float t = dot((poinOnPlane - ray.origin), normPlane) /
             dot(ray.direction, normPlane);
   if (t > tMin && t < tMax) {
@@ -83,7 +84,8 @@ float intersectPlane(const math::Ray &ray, Vector3 poinOnPlane,
 //	return Vector3( haflDist + x * dist, haflDist + y * dist, 0.0 );
 // }
 
-Vector3 getUniformSampleOffset(int index, int side_count) {
+Vector3 getUniformSampleOffset(int index, int side_count) 
+{
   const float x_idx = (float)(index % side_count);
   const float y_idx = (float)std::floor(index / side_count);
 
@@ -98,17 +100,19 @@ Vector3 getUniformSampleOffset(int index, int side_count) {
   return Vector3(u, v, 0.0f);
 }
 
-Vector3 randomUniformVectorHemispher() {
-  float phi = randFloat(0, 1) * 2.0f * PI;
-  float cosTheta = randFloat(0, 1) * 2.0f - 1.0f;
-  float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
-  float x = std::cos(phi) * sinTheta;
-  float y = cosTheta;
-  float z = std::sin(phi) * sinTheta;
+Vector3 randomUniformVectorHemispher() 
+{
+  const float phi = randFloat(0, 1) * 2.0f * PI;
+  const float cosTheta = randFloat(0, 1) * 2.0f - 1.0f;
+  const float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
+  const float x = std::cos(phi) * sinTheta;
+  const float y = cosTheta;
+  const float z = std::sin(phi) * sinTheta;
   return Vector3(x, y, z);
 }
 
-Vector3 randOnHemispher(const Vector3 &normal) {
+Vector3 randOnHemispher(const Vector3 &normal) 
+{
   Vector3 onSphere = randUnitVector();
   if (dot(onSphere, normal) > 0.0f)
     return onSphere;
@@ -116,11 +120,13 @@ Vector3 randOnHemispher(const Vector3 &normal) {
     return -onSphere;
 }
 
-Vector3 reflect(const Vector3 &d, const Vector3 &n) {
+Vector3 reflect(const Vector3 &d, const Vector3 &n) 
+{
   return d - 2.0f * dot(d, n) * n;
 }
 
-Vector3 trace(const math::Ray &ray, const Scene &scene, int depth) {
+Vector3 trace(const math::Ray &ray, const Scene &scene, int depth) 
+{
   const float tMin = 0.1f;
   float tMax = 10000;
   Vector3 hitNormal;
@@ -336,7 +342,7 @@ int main() {
   auto start = std::chrono::high_resolution_clock::now();
 
   TaskManager manager(8, 32);
-
+  
   completed_pixels = 0;
   std::thread progress_thread(display_progress, (int)data.size());
 
@@ -353,16 +359,9 @@ int main() {
               // pixSize, pixSize / 2.0 + y * pixSize, 0 ); Vector3 pixPos =
               // leftTop + Vector3( pixSize / 2.0f + u * aspectRatio, -pixSize
               // / 2.0f - v, 0.0f );
-              const Vector3 offset =
-                  getUniformSampleOffset(s, SIDE_SAMPLE_COUNT);
-              const Vector3 pixPosVS =
-                  leftTop + Vector3((pixSize * offset.x() + u * aspectRatio) *
-                                        viewportHight,
-                                    (-pixSize * offset.y() - v) * viewportHight,
-                                    0.0f);
-              const Vector3 pixPos = camera.pos + pixPosVS.x() * camerRight +
-                                     pixPosVS.y() * camerUp +
-                                     pixPosVS.z() * camerForward;
+              const Vector3 offset = getUniformSampleOffset(s, SIDE_SAMPLE_COUNT);
+              const Vector3 pixPosVS = leftTop + Vector3((pixSize * offset.x() + u * aspectRatio) * viewportHight, (-pixSize * offset.y() - v) * viewportHight, 0.0f);
+              const Vector3 pixPos = camera.pos + pixPosVS.x() * camerRight + pixPosVS.y() * camerUp + pixPosVS.z() * camerForward;
 
               const Vector3 dir = unit_vector(pixPos - camera.pos);
               const math::Ray ray({camera.pos, dir});
@@ -388,6 +387,6 @@ int main() {
   std::cout << "Time: " << duration_ms.count() << " milliseconds" << std::endl;
 
   saveImageToFile(width, height, data);
-
+  
   return 0;
 }
