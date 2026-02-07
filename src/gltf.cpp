@@ -873,6 +873,7 @@ namespace gltf {
 
 					std::vector<int> indices;
 					std::vector<Vector3> positions;
+					std::vector<Vector3> normals;
 					size_t matIndex = prim.material;
 					{
 						const auto acc = gltfScene.accessors[prim.indices];
@@ -912,7 +913,20 @@ namespace gltf {
 									positions.push_back(v);
 								}
 							}
-							else if (semantic == "NORMAL") {} // VEC3 float 
+							else if (semantic == "NORMAL")
+							{
+								const size_t compSize = componentSize(GltfComponentType(acc.componentType));
+								for (size_t i = 0; i < a.count; ++i)
+								{
+									Vector3 v;
+									const uint8_t* ptr = a.data + i * a.stride;
+									writeGltfComponent(GltfComponentType(acc.componentType), ptr + 0 * compSize, &v[0]);
+									writeGltfComponent(GltfComponentType(acc.componentType), ptr + 1 * compSize, &v[1]);
+									writeGltfComponent(GltfComponentType(acc.componentType), ptr + 2 * compSize, &v[2]);
+
+									normals.push_back(v);
+								}
+							} // VEC3 float 
 							else if (semantic == "TEXCOORD_0") {}// VEC2 float
 							else if (semantic == "TANGENT") {} // VEC4 float
 						}
@@ -925,7 +939,10 @@ namespace gltf {
 						Vector3 p0 = transformPoint(nodeWorld, positions[indices[i + 0]]);
 						Vector3 p1 = transformPoint(nodeWorld, positions[indices[i + 1]]);
 						Vector3 p2 = transformPoint(nodeWorld, positions[indices[i + 2]]);
-						triangles.push_back({ p0, p1, p2, matIndex });
+						Vector3 n0 = transformVector(nodeWorld, normals[indices[i + 0]]);
+						Vector3 n1 = transformVector(nodeWorld, normals[indices[i + 1]]);
+						Vector3 n2 = transformVector(nodeWorld, normals[indices[i + 2]]);
+						triangles.push_back({ p0, p1, p2, n0, n1, n2, matIndex });
 						i += 3;
 					}
 

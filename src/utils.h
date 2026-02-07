@@ -13,6 +13,9 @@ namespace math {
 		Vector3 a;
 		Vector3 b;
 		Vector3 c;
+		Vector3 na;
+		Vector3 nb;
+		Vector3 nc;
 		size_t matIndex;
 	};
 

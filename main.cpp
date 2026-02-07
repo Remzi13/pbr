@@ -136,9 +136,31 @@ Vector3 trace(const math::Ray &ray, const Scene &scene, int depth)
   math::Triangle tr;
   float t = scene.intersect(ray, tMin, tMax, tr);
   if (t < tMax) {
-    hitNormal = unit_vector(cross(tr.b - tr.a, tr.c - tr.a));
     tMax = t;
     matIndex = tr.matIndex;
+
+    // Calculate barycentric coordinates for normal interpolation
+    const Vector3 p = ray.origin + ray.direction * tMax;
+    const Vector3 v0 = tr.b - tr.a;
+    const Vector3 v1 = tr.c - tr.a;
+    const Vector3 v2 = p - tr.a;
+
+    const float d00 = dot(v0, v0);
+    const float d01 = dot(v0, v1);
+    const float d11 = dot(v1, v1);
+    const float d20 = dot(v2, v0);
+    const float d21 = dot(v2, v1);
+
+    const float denom = d00 * d11 - d01 * d01;
+    if (std::abs(denom) < 1e-8f) {
+      hitNormal = unit_vector(cross(v0, v1));
+    } else {
+      const float v = (d11 * d20 - d01 * d21) / denom;
+      const float w = (d00 * d21 - d01 * d20) / denom;
+      const float u = 1.0f - v - w;
+
+      hitNormal = unit_vector(u * tr.na + v * tr.nb + w * tr.nc);
+    }
   }
   if (tMax == 10000 || matIndex == -1)
     return Vector3(0.f, 0.f, 0.f); // scene.enviroment();
@@ -314,8 +336,8 @@ void display_progress(int total_pixels) {
 
 int main() {
   Scene scene;
-  //gltf::parse("../scenes/07-scene-easy.gltf", scene);
-  gltf::parse("../scenes/07-scene-medium-2.gltf", scene);
+  gltf::parse("../scenes/07-scene-easy.gltf", scene);
+  //gltf::parse("../scenes/07-scene-medium-2.gltf", scene);
 
   const float aspectRatio = scene.camera().aspectRatio;
   const std::uint16_t width = 600;
