@@ -5,7 +5,6 @@
 #include <cctype>
 #include <stdexcept>
 #include <iostream>
-#include <array>
 #include <optional>
 #include <vector>
 #include <ostream>
@@ -859,9 +858,15 @@ namespace gltf {
 		Parser parser(lexer);
 		Parser::SceneFile gltfScene = parser.parseSceneFile();
 
+		std::string path(fileName);
+		std::string dir = "";
+		size_t lastSlash = path.find_last_of("/\\");
+		if (lastSlash != std::string::npos) {
+			dir = path.substr(0, lastSlash + 1);
+		}
 
 		GltfBin bin;
-		bin.loadFromFile("../scenes/" + gltfScene.buffers[0].uri);
+		bin.loadFromFile(dir + gltfScene.buffers[0].uri);
 
 		for (const auto& node : gltfScene.nodes)
 		{

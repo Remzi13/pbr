@@ -1,9 +1,18 @@
+#include <SDL.h>
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_sdlrenderer2.h"
+
 #include <fstream>
 #include <iostream>
 #include <vector>
 #include <algorithm>
 #include <chrono>
+#include <atomic>
+#include <thread>
 
+#include <unistd.h>
+#include <cstdio>
 #include "src/brdf.h"
 #include "src/concurrency.h"
 #include "src/gltf.h"
@@ -12,12 +21,6 @@
 #include "src/vector.h"
 
 float srgb(float x) { return std::pow(x, 1.f / 2.2f); }
-
-Vector3 tonemapping(const Vector3 &color) 
-{
-  return Vector3(std::min(1.0f, color.x()), std::min(1.0f, color.y()),
-                 std::min(1.0f, color.z()));
-}
 
 Vector3 tonemappingUncharted(const Vector3 &color) {
   const Vector3 A = Vector3(0.15f, 0.15f, 0.15f);
@@ -54,35 +57,11 @@ void saveImageToFile(std::uint16_t width, std::uint16_t height,
       outfile << "\n";
     }
     outfile.close();
-
-    // Сообщаем о сохранении
     printf("Image saved to output.ppm\n");
   } else {
     printf("Error: Could not open output.ppm for writing.\n");
   }
 }
-
-// можно использовать точку и дистанцию
-float intersectPlane(const math::Ray &ray, Vector3 poinOnPlane,
-                     Vector3 normPlane, float tMin, float tMax) 
-{
-  float t = dot((poinOnPlane - ray.origin), normPlane) /
-            dot(ray.direction, normPlane);
-  if (t > tMin && t < tMax) {
-    return t;
-  } else {
-    return tMax;
-  }
-}
-
-// Vector3 getUniformSampleOffset( int index, int side_count )
-//{
-//	const float haflDist = 0.5 / side_count;
-//	const float dist = 1.0 / side_count;
-//	const float x = index % side_count;
-//	const float y = std::floor( index / side_count );
-//	return Vector3( haflDist + x * dist, haflDist + y * dist, 0.0 );
-// }
 
 Vector3 getUniformSampleOffset(int index, int side_count) 
 {
@@ -111,20 +90,6 @@ Vector3 randomUniformVectorHemispher()
   return Vector3(x, y, z);
 }
 
-Vector3 randOnHemispher(const Vector3 &normal) 
-{
-  Vector3 onSphere = randUnitVector();
-  if (dot(onSphere, normal) > 0.0f)
-    return onSphere;
-  else
-    return -onSphere;
-}
-
-Vector3 reflect(const Vector3 &d, const Vector3 &n) 
-{
-  return d - 2.0f * dot(d, n) * n;
-}
-
 Vector3 trace(const math::Ray &ray, const Scene &scene, int depth) 
 {
   const float tMin = 0.1f;
@@ -139,7 +104,6 @@ Vector3 trace(const math::Ray &ray, const Scene &scene, int depth)
     tMax = t;
     matIndex = tr.matIndex;
 
-    // Calculate barycentric coordinates for normal interpolation
     const Vector3 p = ray.origin + ray.direction * tMax;
     const Vector3 v0 = tr.b - tr.a;
     const Vector3 v1 = tr.c - tr.a;
@@ -163,15 +127,13 @@ Vector3 trace(const math::Ray &ray, const Scene &scene, int depth)
     }
   }
   if (tMax == 10000 || matIndex == -1)
-    return Vector3(0.f, 0.f, 0.f); // scene.enviroment();
+    return Vector3(0.f, 0.f, 0.f);
 
   if (dot(hitNormal, ray.direction) > 0.0)
     hitNormal = -hitNormal;
 
   const Material m = scene.materials()[matIndex];
 
-  // float probToContinue = 0.5;// std::min(0.9f, std::max( 1e-3f, std::max(
-  // m.albedo.x(), std::max( m.albedo.y(), m.albedo.z() ) )));
   const float probToContinue =
       std::max(m.albedo.x(), std::max(m.albedo.y(), m.albedo.z()));
   const int maxDepth = 10;
@@ -189,8 +151,6 @@ Vector3 trace(const math::Ray &ray, const Scene &scene, int depth)
   const Vector3 newOrig = ray.origin + ray.direction * tMax + newDir * 1e-4f;
   const math::Ray newRay({newOrig, newDir});
 
-  // float brdf = 1.0f / PI;
-  // float pdf = 1.0f / ( 2.0f * PI );
   const Vector3 L = newDir;
   const Vector3 V = ray.direction * -1.0f;
   const Vector3 H = unit_vector((L + V) * 0.5f);
@@ -206,210 +166,226 @@ Vector3 trace(const math::Ray &ray, const Scene &scene, int depth)
   return color;
 }
 
-// Vector3 trace_iterative( math::Ray ray, const Scene& scene, int maxDepth)
-//{
-//	Vector3 throughput = Vector3(1.0, 1.0, 1.0);
-//	Vector3 radiance = Vector3(0.0, 0.0, 0.0);
-//
-//	const float tMin = 0.001f;
-//
-//	for (int depth = 0; depth < maxDepth; ++depth)
-//	{
-//		float tMax = 10000.0f;
-//		float t;
-//		Vector3 hitNormal;
-//		int matIndex = -1;
-//
-//
-//		for (const auto& sp : scene.spheres())
-//		{
-//			t = math::intersect(ray, sp, tMin, tMax);
-//			if (t < tMax)
-//			{
-//				Vector3 pos = ray.origin + ray.direction * t;
-//				hitNormal = unit_vector(pos - sp.pos);
-//				tMax = t;
-//				matIndex = sp.matIndex;
-//			}
-//		}
-//
-//		for (const auto& p : scene.planes())
-//		{
-//			t = intersectPlane2(ray, p.normal, p.dist, tMin, tMax);
-//			if (t < tMax)
-//			{
-//				hitNormal = p.normal;
-//				tMax = t;
-//				matIndex = p.matIndex;
-//			}
-//		}
-//
-//		for (const auto& tr : scene.triangles())
-//		{
-//			t = math::intersect(ray, tr, tMin, tMax);
-//			if (t < tMax)
-//			{
-//				hitNormal = unit_vector(cross(tr.b - tr.a, tr.c
-//- tr.a)); 				tMax = t;
-//matIndex = tr.matIndex;
-//			}
-//		}
-//
-//		if (matIndex == -1 || tMax == 10000.0f) // matIndex == -1 -
-// более явная проверка на промах
-//		{
-//			radiance += throughput * scene.enviroment();
-//			break;
-//		}
-//
-//		if (dot(hitNormal, ray.direction) > 0.0)
-//			hitNormal = -hitNormal;
-//
-//
-//		Vector3 newDir = randomUniformVectorHemispher();
-//
-//		auto cosTheta = dot(newDir, hitNormal);
-//		if (cosTheta < 0.0)
-//			newDir *= -1;
-//
-//		cosTheta = dot(newDir, hitNormal);
-//
-//		const Material m = scene.materials()[matIndex];
-//
-//
-//		radiance += throughput * m.emission;
-//
-//		const float brdf = 1.0f / PI;
-//		const float pdf = 1.0f / (2.0f * PI);
-//
-//		throughput = throughput * m.albedo * (brdf * cosTheta / pdf);
-//
-//
-//		const Vector3 newOrig = ray.origin + ray.direction * tMax +
-// newDir * 1e-4f;
-//
-//		ray.origin = newOrig;
-//		ray.direction = newDir;
-//	}
-//
-//	return radiance;
-// }
-
 std::atomic<int> completed_pixels(0);
 
-void display_progress(int total_pixels) {
-  const int BAR_LENGTH = 50;
-  int last_percentage = -1;
+struct RenderSettings {
+    int width = 600;
+    int height = 400;
+    int samples = 1;
+    bool rendering = false;
+};
 
-  while (completed_pixels.load() < total_pixels) {
-    int current = completed_pixels.load();
-
-    int percentage = (current * 100) / total_pixels;
-    int filled_length = (percentage * BAR_LENGTH) / 100;
-
-    if (percentage > last_percentage) {
-      std::cout << "\r[";
-
-      for (int i = 0; i < filled_length; ++i) {
-        std::cout << "#";
-      }
-
-      for (int i = filled_length; i < BAR_LENGTH; ++i) {
-        std::cout << " ";
-      }
-
-      std::cout << "] " << percentage << "% (" << current << "/" << total_pixels
-                << ")";
-      std::cout.flush();
-      last_percentage = percentage;
+int main(int argc, char* argv[]) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0) {
+        printf("Error: %s\n", SDL_GetError());
+        return -1;
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  }
+    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    SDL_Window* window = SDL_CreateWindow("PBR Path Tracer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
+    if (renderer == nullptr) {
+        SDL_Log("Error creating SDL_Renderer!");
+        return 0;
+    }
 
-  std::cout << "\r[";
-  for (int i = 0; i < BAR_LENGTH; ++i)
-    std::cout << "#";
-  std::cout << "] 100% (" << total_pixels << "/" << total_pixels << ")\n";
-  std::cout.flush();
-}
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    //io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-int main() {
-  Scene scene;
-  gltf::parse("../scenes/07-scene-easy.gltf", scene);
-  //gltf::parse("../scenes/07-scene-medium-2.gltf", scene);
+    ImGui::StyleColorsDark();
 
-  const float aspectRatio = scene.camera().aspectRatio;
-  const std::uint16_t width = 600;
-  const std::uint16_t height = width / aspectRatio;
+    ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
+    ImGui_ImplSDLRenderer2_Init(renderer);
 
-  auto &camera = scene.camera();
-  const Vector3 camerForward = unit_vector(camera.target - camera.pos);
-  const Vector3 camerRight = unit_vector(cross(camerForward, camera.up));
-  const Vector3 camerUp = cross(camerRight, camerForward);
+    Scene scene;
+    const char* scenePath = "scenes/07-scene-easy.gltf";
+    const char* fallbackPath = "../scenes/07-scene-easy.gltf";
+    
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        printf("Current working dir: %s\n", cwd);
+    }
 
-  const float pixSize = 1.0f / height;
-  // const float viewportHight = 2.0f * std::tan( (camera.fov / 180.0f * PI) *
-  // 0.5f );
-  const float viewportHight = 2.0f * std::tan((camera.fov) * 0.5f);
+    bool loaded = gltf::parse(scenePath, scene);
+    if (!loaded) {
+        printf("Failed to load %s, trying %s\n", scenePath, fallbackPath);
+        loaded = gltf::parse(fallbackPath, scene);
+    }
 
-  //	const Vector3 leftTop( -aspectRatio / 2, 0.5f, 1.0f );
-  const Vector3 leftTop(-aspectRatio * viewportHight / 2.0f,
-                        viewportHight / 2.0f, 1.0f);
+    RenderSettings settings;
+    settings.width = 600;
+    
+    if (loaded && scene.camera().aspectRatio > 0.01f) {
+        settings.height = (int)(settings.width / scene.camera().aspectRatio);
+    } else {
+        printf("Warning: Scene not loaded or camera invalid. Using default settings.\n");
+        settings.height = 400;
+        Camera defaultCam;
+        defaultCam.pos = Vector3(0, 0, 5);
+        defaultCam.target = Vector3(0, 0, 0);
+        defaultCam.up = Vector3(0, 1, 0);
+        defaultCam.fov = 45.0f * PI / 180.0f;
+        defaultCam.aspectRatio = 1.5f;
+        scene.setCamera(defaultCam);
+    }
 
-  std::vector<Vector3> data;
-  data.resize(width * height);
+    std::vector<Vector3> renderData(settings.width * settings.height, Vector3(0,0,0));
+    SDL_Texture* renderTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, settings.width, settings.height);
+    if (!renderTexture) {
+        printf("Error: Could not create SDL_Texture (%dx%d): %s\n", settings.width, settings.height, SDL_GetError());
+    }
+    std::vector<uint32_t> pixels(settings.width * settings.height, 0xFF000000);
 
-  // const int SIDE_SAMPLE_COUNT = scene.samples();
-  const int SIDE_SAMPLE_COUNT = 8;
-  auto start = std::chrono::high_resolution_clock::now();
+    TaskManager taskManager(8, 32);
 
-  TaskManager manager(8, 32);
-  
-  completed_pixels = 0;
-  std::thread progress_thread(display_progress, (int)data.size());
+    auto startRender = [&]() {
+        printf("startRender triggered\n");
+        if (settings.width <= 0 || settings.height <= 0) return;
+        completed_pixels = 0;
+        settings.rendering = true;
+        renderData.assign(settings.width * settings.height, Vector3(0, 0, 0));
 
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      while (!manager.add(
-          [&](int x, int y, std::vector<Vector3> &data, const Scene &scene) {
-            Vector3 color(0, 0, 0);
-            const float u = float(x) / width;
-            const float v = float(y) / height;
+        // Use a separate thread to submit tasks to the manager to avoid blocking UI
+        std::thread([&]() {
+            auto& camera = scene.camera();
+            const Vector3 camerForward = unit_vector(camera.target - camera.pos);
+            const Vector3 camerRight = unit_vector(cross(camerForward, camera.up));
+            const Vector3 camerUp = cross(camerRight, camerForward);
+            const float pixSize = 1.0f / settings.height;
+            const float viewportHight = 2.0f * std::tan((camera.fov) * 0.5f);
+            const float aspectRatio = camera.aspectRatio;
+            const Vector3 leftTop(-aspectRatio * viewportHight / 2.0f, viewportHight / 2.0f, 1.0f);
 
-            for (int s = 0; s < SIDE_SAMPLE_COUNT * SIDE_SAMPLE_COUNT; ++s) {
-              // Vector3 pixPos = leftTop + Vector3( pixSize / 2.0 + x *
-              // pixSize, pixSize / 2.0 + y * pixSize, 0 ); Vector3 pixPos =
-              // leftTop + Vector3( pixSize / 2.0f + u * aspectRatio, -pixSize
-              // / 2.0f - v, 0.0f );
-              const Vector3 offset = getUniformSampleOffset(s, SIDE_SAMPLE_COUNT);
-              const Vector3 pixPosVS = leftTop + Vector3((pixSize * offset.x() + u * aspectRatio) * viewportHight, (-pixSize * offset.y() - v) * viewportHight, 0.0f);
-              const Vector3 pixPos = camera.pos + pixPosVS.x() * camerRight + pixPosVS.y() * camerUp + pixPosVS.z() * camerForward;
+            for (int y = 0; y < settings.height; ++y) {
+                // Submit row-based tasks for better performance
+                // Capture locals by value, but shared resources by reference
+                while (!taskManager.add([=, &renderData, &scene, &settings](int row) {
+                    for (int x = 0; x < settings.width; ++x) {
+                        Vector3 color(0, 0, 0);
+                        const float u = float(x) / settings.width;
+                        const float v = float(row) / settings.height;
+                        const int SIDE_SAMPLE_COUNT = settings.samples;
 
-              const Vector3 dir = unit_vector(pixPos - camera.pos);
-              const math::Ray ray({camera.pos, dir});
-              // color += trace_iterative( ray, scene, 4 );
-              color += trace(ray, scene, 0);
+                        for (int s = 0; s < SIDE_SAMPLE_COUNT * SIDE_SAMPLE_COUNT; ++s) {
+                            const Vector3 offset = getUniformSampleOffset(s, SIDE_SAMPLE_COUNT);
+                            const Vector3 pixPosVS = leftTop + Vector3((pixSize * offset.x() + u * aspectRatio) * viewportHight, (-pixSize * offset.y() - v) * viewportHight, 0.0f);
+                            const Vector3 pixPos = camera.pos + pixPosVS.x() * camerRight + pixPosVS.y() * camerUp + pixPosVS.z() * camerForward;
+
+                            const Vector3 dir = unit_vector(pixPos - camera.pos);
+                            const math::Ray ray({camera.pos, dir});
+                            color += trace(ray, scene, 0);
+                        }
+                        renderData[row * settings.width + x] = color / float(SIDE_SAMPLE_COUNT * SIDE_SAMPLE_COUNT);
+                        completed_pixels.fetch_add(1);
+                    }
+                    if (row % 50 == 0) {
+                        printf("Finished row %d\n", row);
+                    }
+                }, y)) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
             }
+        }).detach();
+    };
 
-            data[y * width + x] =
-                color / float(SIDE_SAMPLE_COUNT * SIDE_SAMPLE_COUNT);
-            completed_pixels.fetch_add(1);
-          },
-          x, y, std::ref(data), std::cref(scene))) {
-        std::this_thread::yield();
-      }
+    bool done = false;
+    while (!done) {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            ImGui_ImplSDL2_ProcessEvent(&event);
+            if (event.type == SDL_QUIT)
+                done = true;
+            if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
+                done = true;
+        }
+
+        ImGui_ImplSDLRenderer2_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+
+        {
+            ImGui::Begin("Settings");
+            ImGui::Text("Resolution: %d x %d", settings.width, settings.height);
+            ImGui::SliderInt("Samples", &settings.samples, 1, 16);
+            if (ImGui::Button("Start Render") && !settings.rendering) {
+                startRender();
+            }
+            if (settings.rendering) {
+                float progress = (float)completed_pixels.load() / (settings.width * settings.height);
+                ImGui::ProgressBar(progress);
+                if (completed_pixels.load() == settings.width * settings.height) {
+                    settings.rendering = false;
+                }
+            }
+            if (ImGui::Button("Save Image") && completed_pixels.load() > 0) {
+                saveImageToFile(settings.width, settings.height, renderData);
+            }
+            ImGui::End();
+        }
+
+        // Update texture
+        bool shouldUpdate = true; // Always update for now to avoid initial garbage
+        if (renderTexture && shouldUpdate) {
+            static bool firstUpdate = true;
+            if (firstUpdate) {
+                printf("Starting first texture update...\n");
+                firstUpdate = false;
+            }
+            bool hasWarned = false;
+            for (int i = 0; i < settings.width * settings.height; ++i) {
+                Vector3 c = renderData[i];
+                // Check for NaN or Inf to avoid white screen
+                if (!std::isfinite(c.x()) || !std::isfinite(c.y()) || !std::isfinite(c.z())) {
+                    if (!hasWarned) {
+                        printf("Warning: NaN or Inf detected in renderData[0]\n");
+                        hasWarned = true;
+                    }
+                    c = Vector3(1, 0, 1); // Pink for error
+                }
+                Vector3 color = tonemappingUncharted(c);
+                uint8_t r = (uint8_t)std::clamp(srgb(color.x()) * 255.0f, 0.0f, 255.0f);
+                uint8_t g = (uint8_t)std::clamp(srgb(color.y()) * 255.0f, 0.0f, 255.0f);
+                uint8_t b = (uint8_t)std::clamp(srgb(color.z()) * 255.0f, 0.0f, 255.0f);
+                pixels[i] = (0xFF << 24) | (b << 16) | (g << 8) | r;
+            }
+            if (SDL_UpdateTexture(renderTexture, nullptr, pixels.data(), settings.width * sizeof(uint32_t)) != 0) {
+                printf("SDL_UpdateTexture failed: %s\n", SDL_GetError());
+            } else {
+                static int updateCount = 0;
+                if (updateCount++ < 5) {
+                    printf("Update texture %d: pixels[0]=%08X\n", updateCount, pixels[0]);
+                }
+            }
+        }
+
+        ImGui::Begin("Viewport");
+        ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+        if (viewportSize.x > 0 && viewportSize.y > 0) {
+            ImGui::Image((ImTextureID)renderTexture, viewportSize);
+        } else {
+            ImGui::Text("Viewport too small");
+        }
+        ImGui::End();
+
+        ImGui::Render();
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
+        SDL_RenderPresent(renderer);
     }
-  }
-  manager.stop();
-  if (progress_thread.joinable()) {
-    progress_thread.join();
-  }
-  auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::high_resolution_clock::now() - start);
-  std::cout << "Time: " << duration_ms.count() << " milliseconds" << std::endl;
 
-  saveImageToFile(width, height, data);
-  
-  return 0;
+    taskManager.stop();
+    ImGui_ImplSDLRenderer2_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
+    SDL_DestroyTexture(renderTexture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+
+    return 0;
 }
