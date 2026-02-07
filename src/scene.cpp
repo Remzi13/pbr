@@ -13,7 +13,7 @@ void Scene::Node::rebuild()
     bvh.build(triangles);
 }
 
-Scene::Node::Node(const std::string& n, const std::vector<math::Triangle>& tr) : name(n), triangles(tr)
+Scene::Node::Node(const std::string& name, size_t matIdx, const std::vector<math::Triangle>& tr) : name(name), matIndex(matIdx), triangles(tr)
 { 
 	for (const auto& t : triangles)
 	{
@@ -22,9 +22,9 @@ Scene::Node::Node(const std::string& n, const std::vector<math::Triangle>& tr) :
 	bvh.build(triangles);
 }
 
-void Scene::addNode(const std::string& name, const std::vector<math::Triangle>& triangles)
-{
-	nodes_.push_back({ name, triangles });
+void Scene::addNode(const std::string& name, const std::vector<math::Triangle>& triangles, size_t matIndex)
+{	
+	nodes_.emplace_back(name, matIndex, triangles);
 }
 
 void Scene::addMaterial(const Material& m)
@@ -32,22 +32,24 @@ void Scene::addMaterial(const Material& m)
 	materials_.push_back(m);
 }
 
-float Scene::intersect(const math::Ray& ray, float tMin, float tMax, math::Triangle& tr) const
+std::pair<const Scene::Node*, float> Scene::intersect(const math::Ray& ray, float tMin, float tMax, math::Triangle& tr) const
 {
 	float closestT = tMax;
 	float tBox;
 	math::Triangle t;
-	for (const auto& node : nodes_)
+	const Node* node = nullptr;
+	for (const auto& n : nodes_)
 	{
-		if (math::intersectBB(ray, node.bbox, tMin, tMax, tBox))
+		if (math::intersectBB(ray, n.bbox, tMin, tMax, tBox))
 		{
-			float dist = node.bvh.intersect(ray, tMin, closestT, t);
+			float dist = n.bvh.intersect(ray, tMin, closestT, t);
 			if (dist < closestT)
 			{
 				closestT = dist;
 				tr = t;
+				node = &n;
 			}
 		}
 	}
-	return closestT;
+	return {node, closestT};
 }

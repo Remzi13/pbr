@@ -15,8 +15,7 @@ namespace math {
 		Vector3 c;
 		Vector3 na;
 		Vector3 nb;
-		Vector3 nc;
-		size_t matIndex;
+		Vector3 nc;		
 	};
 
 	struct Sphere

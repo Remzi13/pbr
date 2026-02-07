@@ -25,8 +25,9 @@ struct Camera {
 class Scene {
 public:
   struct Node {
-    Node(const std::string &n, const std::vector<math::Triangle> &tr);
+    Node(const std::string &name, size_t matIdx, const std::vector<math::Triangle> &tr);
     std::string name;
+    size_t matIndex;
     math::BBox bbox;
     std::vector<math::Triangle> triangles;
     BVH<math::Triangle> bvh;
@@ -35,7 +36,7 @@ public:
   };
 
   void addNode(const std::string &name,
-               const std::vector<math::Triangle> &triangles);
+               const std::vector<math::Triangle> &triangles, size_t matIndex);
   void addMaterial(const Material &m);
   
   const std::vector<Material> &materials() const { return materials_; }
@@ -44,7 +45,7 @@ public:
   const std::vector<Node> &nodes() const { return nodes_; }
   std::vector<Node> &nodes() { return nodes_; }
 
-  float intersect(const math::Ray &ray, float tMin, float tMax,
+  std::pair<const Node*, float> intersect(const math::Ray &ray, float tMin, float tMax,
                   math::Triangle &tr) const;
 
   void setCamera(const Camera &camera) { camera_ = camera; }

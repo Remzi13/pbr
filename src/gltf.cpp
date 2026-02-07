@@ -947,11 +947,11 @@ namespace gltf {
 						Vector3 n0 = transformVector(nodeWorld, normals[indices[i + 0]]);
 						Vector3 n1 = transformVector(nodeWorld, normals[indices[i + 1]]);
 						Vector3 n2 = transformVector(nodeWorld, normals[indices[i + 2]]);
-						triangles.push_back({ p0, p1, p2, n0, n1, n2, matIndex });
+						triangles.push_back({ p0, p1, p2, n0, n1, n2});
 						i += 3;
 					}
 
-					scene.addNode(node.name, triangles);
+					scene.addNode(node.name, triangles, matIndex);
 				}
 
 			}

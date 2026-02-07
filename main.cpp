@@ -99,10 +99,10 @@ Vector3 trace(const math::Ray &ray, const Scene &scene, int depth)
   int matIndex = -1;
 
   math::Triangle tr;
-  float t = scene.intersect(ray, tMin, tMax, tr);
+  auto [node, t] = scene.intersect(ray, tMin, tMax, tr);
   if (t < tMax) {
     tMax = t;
-    matIndex = tr.matIndex;
+    matIndex = node->matIndex;
 
     const Vector3 p = ray.origin + ray.direction * tMax;
     const Vector3 v0 = tr.b - tr.a;
@@ -201,8 +201,8 @@ int main(int argc, char* argv[]) {
     ImGui_ImplSDLRenderer2_Init(renderer);
 
     Scene scene;
-    const char* scenePath = "scenes/07-scene-easy.gltf";
-    const char* fallbackPath = "../scenes/07-scene-easy.gltf";
+    const char* scenePath = "scenes/07-scene-medium-2.gltf";
+    const char* fallbackPath = "../scenes/07-scene-medium-2.gltf";
     
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
@@ -361,7 +361,7 @@ int main(int argc, char* argv[]) {
                     
                     int matIdx = 0;
                     if (!nodes[i].triangles.empty()) {
-                        matIdx = (int)nodes[i].triangles[0].matIndex;
+                        matIdx = (int)nodes[i].matIndex;
                     }
 
                     if (ImGui::BeginCombo("Material", materials[matIdx].name.empty() ? ("Material " + std::to_string(matIdx)).c_str() : materials[matIdx].name.c_str())) {
@@ -370,9 +370,7 @@ int main(int argc, char* argv[]) {
                             std::string matName = materials[m].name;
                             if (matName.empty()) matName = "Material " + std::to_string(m);
                             if (ImGui::Selectable(matName.c_str(), isSelected)) {
-                                for (auto& tr : nodes[i].triangles) {
-                                    tr.matIndex = (size_t)m;
-                                }
+                                nodes[i].matIndex = (size_t)m;
                                 nodes[i].rebuild();
                                 if (settings.rendering) startRender();
                             }
