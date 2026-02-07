@@ -881,7 +881,7 @@ namespace gltf {
 
 						for (size_t i = 0; i < idx.count; ++i)
 						{
-							const uint8_t* ptr = idx.data + i * idx.elementSize;
+							const uint8_t* ptr = idx.data + i * idx.stride;
 
 							uint32_t index = 0;
 							writeGltfComponent(GltfComponentType(acc.componentType), ptr, &index);
@@ -904,7 +904,7 @@ namespace gltf {
 								for (size_t i = 0; i < a.count; ++i)
 								{
 									Vector3 v;
-									const uint8_t* ptr = a.data + i * a.elementSize;
+									const uint8_t* ptr = a.data + i * a.stride;
 									writeGltfComponent(GltfComponentType(acc.componentType), ptr + 0 * compSize, &v[0]);
 									writeGltfComponent(GltfComponentType(acc.componentType), ptr + 1 * compSize, &v[1]);
 									writeGltfComponent(GltfComponentType(acc.componentType), ptr + 2 * compSize, &v[2]);
@@ -960,6 +960,6 @@ namespace gltf {
 			scene.addMaterial(mat);
 		}
 
-		return false;
+		return true;
 	}
 }

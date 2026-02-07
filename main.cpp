@@ -323,8 +323,8 @@ int main() {
 
   auto &camera = scene.camera();
   const Vector3 camerForward = unit_vector(camera.target - camera.pos);
-  const Vector3 camerRight = unit_vector(cross(camera.up, camerForward));
-  const Vector3 camerUp = cross(camerForward, camerRight);
+  const Vector3 camerRight = unit_vector(cross(camerForward, camera.up));
+  const Vector3 camerUp = cross(camerRight, camerForward);
 
   const float pixSize = 1.0f / height;
   // const float viewportHight = 2.0f * std::tan( (camera.fov / 180.0f * PI) *
