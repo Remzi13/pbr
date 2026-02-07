@@ -6,14 +6,15 @@
 void Scene::Node::rebuild()
 {
     bbox = math::BBox();
-    for (const auto& t : triangles)
+	auto pr = bvh.primitives();
+    for (const auto& t : pr)
     {
         bbox.growTo(t);
     }
-    bvh.build(triangles);
+    bvh.build(pr);
 }
 
-Scene::Node::Node(const std::string& name, size_t matIdx, const std::vector<math::Triangle>& tr) : name(name), matIndex(matIdx), triangles(tr)
+Scene::Node::Node(const std::string& name, size_t matIdx, const std::vector<math::Triangle>& triangles) : name(name), matIndex(matIdx)
 { 
 	for (const auto& t : triangles)
 	{
@@ -32,24 +33,23 @@ void Scene::addMaterial(const Material& m)
 	materials_.push_back(m);
 }
 
-std::pair<const Scene::Node*, float> Scene::intersect(const math::Ray& ray, float tMin, float tMax, math::Triangle& tr) const
+std::tuple<float, math::Triangle, Material> Scene::intersect(const math::Ray& ray, float tMin, float tMax) const
 {
 	float closestT = tMax;
 	float tBox;
 	math::Triangle t;
-	const Node* node = nullptr;
+	size_t matIndex = 0;
 	for (const auto& n : nodes_)
 	{
-		if (math::intersectBB(ray, n.bbox, tMin, tMax, tBox))
+		if (math::intersectBB(ray, n.bbox, tMin, closestT, tBox))
 		{
 			float dist = n.bvh.intersect(ray, tMin, closestT, t);
 			if (dist < closestT)
 			{
 				closestT = dist;
-				tr = t;
-				node = &n;
+				matIndex = n.matIndex;
 			}
 		}
 	}
-	return {node, closestT};
+	return {closestT, t, materials_[matIndex]};
 }

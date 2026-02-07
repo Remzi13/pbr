@@ -10,20 +10,12 @@
 
 template <typename T>
 class BVH {
+
 public:
-
-    struct alignas(32) Node {
-        math::BBox box;
-        uint32_t leftFirst; 
-        uint32_t count;     
-        
-        bool isLeaf() const { return count > 0; }
-    };
-
     void build(const std::vector<T>& triangles) {
         triangles_ = triangles;
         nodes_.clear();
-        nodes_.reserve(triangles.size() * 2);
+        //nodes_.reserve(triangles.size() * 2);
         
         Node root;
         root.leftFirst = 0;
@@ -78,6 +70,17 @@ public:
 
         return hitAnything ? closestT : tMax;
     }
+
+	std::vector<T>& primitives() { return triangles_; }
+
+private:
+    struct alignas(32) Node {
+        math::BBox box;
+        uint32_t leftFirst;
+        uint32_t count;
+
+        bool isLeaf() const { return count > 0; }
+    };
 
 private:
     std::vector<Node> nodes_;
