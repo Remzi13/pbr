@@ -1,178 +1,138 @@
 #pragma once
 
 #include <algorithm>
-#include <iostream>
-#include <memory>
 #include <vector>
+#include <cmath>
+#include <cstdint>
 
 #include "utils.h"
 #include "vector.h"
 
-template <typename T> class BVH {
+template <typename T>
+class BVH {
 public:
-  void build(const std::vector<T> &shapes) {
-    root_ = std::make_unique<Node>();
 
-    for (const auto &t : shapes) {
-      root_->box.growTo(t);
+    struct alignas(32) Node {
+        math::BBox box;
+        uint32_t leftFirst; 
+        uint32_t count;     
+        
+        bool isLeaf() const { return count > 0; }
+    };
+
+    void build(const std::vector<T>& triangles) {
+        triangles_ = triangles;
+        nodes_.clear();
+        nodes_.reserve(triangles.size() * 2);
+        
+        Node root;
+        root.leftFirst = 0;
+        root.count = (uint32_t)triangles_.size();
+        root.box = math::BBox();
+        
+        
+        for (const auto& t : triangles_) {
+            root.box.growTo(t);
+        }
+
+        nodes_.push_back(root);
+        
+        split(0, 0);
+
+        nodes_.shrink_to_fit();
     }
 
-    root_->shapes = shapes;
+    float intersect(const math::Ray& ray, float tMin, float tMax, T& hitPrimitive) const {
+        if (nodes_.empty()) return tMax;
 
-    split(*root_.get());
-  }
+        const Node* stack[64];
+        const Node** stackPtr = stack;
+        *stackPtr++ = &nodes_[0];
 
-  float intersect(const math::Ray &ray, float tMin, float tMax, T &tr) const {
-    return intersect(ray, *root_.get(), tMin, tMax, tr);
-  }
+        float closestT = tMax;
+        bool hitAnything = false;
 
-  void print() const {
-    if (!root_) {
-      std::cout << "BVH is empty.\n";
-      return;
+        while (stackPtr != stack) {
+            const Node* node = *--stackPtr;
+
+            float tBox;
+            if (!intersectBB(ray, node->box, tMin, closestT, tBox)) {
+                continue;
+            }
+            
+            if (node->isLeaf()) {
+
+                for (uint32_t i = 0; i < node->count; ++i) {
+                    float t = math::intersect(ray, triangles_[node->leftFirst + i], tMin, closestT);
+                    if (t < closestT) {
+                        closestT = t;
+                        hitPrimitive = triangles_[node->leftFirst + i];
+                        hitAnything = true;
+                    }
+                }
+            } else {
+                *stackPtr++ = &nodes_[node->leftFirst];
+                *stackPtr++ = &nodes_[node->leftFirst + 1];
+            }
+        }
+
+        return hitAnything ? closestT : tMax;
     }
-
-    int emptyNodes = 0;
-    int heavyNodes = 0;
-
-    printNode(*root_, 0, emptyNodes, heavyNodes);
-
-    std::cout << "--------------------------------\n";
-    std::cout << "BVH Statistics:\n";
-    std::cout << "Total Empty Nodes (0 tris): " << emptyNodes << "\n";
-    std::cout << "Total Heavy Nodes (>8 tris): " << heavyNodes << "\n";
-    std::cout << "--------------------------------\n";
-  }
 
 private:
-  struct Node {
-    math::BBox box;
-    std::vector<T> shapes;
-    std::unique_ptr<Node> childA;
-    std::unique_ptr<Node> childB;
-  };
+    std::vector<Node> nodes_;
+    std::vector<T> triangles_;
 
-  void split(Node &parent, int depth = 0) const {
-    if (depth > 10)
-      return;
-    if (parent.shapes.size() <= 2)
-      return;
+    void split(size_t nodeIdx, int depth) {
+        uint32_t first = nodes_[nodeIdx].leftFirst;
+        uint32_t count = nodes_[nodeIdx].count;
 
-    Vector3 size = parent.box.size();
-
-    int splitAxis = size.x() > std::max(size.y(), size.z()) ? 0
-                    : size.y() > size.z()                   ? 1
-                                                            : 2;
-
-    float splitPos = 0.0f;
-    for (const auto &tr : parent.shapes)
-      splitPos += math::center(tr)[splitAxis];
-    splitPos /= parent.shapes.size();
-
-    auto childA = std::make_unique<Node>();
-    auto childB = std::make_unique<Node>();
-
-    for (const auto &tr : parent.shapes) {
-      float c = math::center(tr)[splitAxis];
-      Node *dst = (c < splitPos) ? childA.get() : childB.get();
-
-      dst->shapes.push_back(tr);
-      dst->box.growTo(tr);
-    }
-
-    if (childA->shapes.empty() || childB->shapes.empty()) {
-      return;
-    }
-
-    parent.childA = std::move(childA);
-    parent.childB = std::move(childB);
-
-    parent.shapes = {};
-
-    split(*parent.childA, depth + 1);
-    split(*parent.childB, depth + 1);
-  }
-
-  void printNode(const Node &node, int depth, int &emptyCount,
-                 int &heavyCount) const {
-
-    if (node.shapes.empty()) {
-      emptyCount++;
-    }
-    if (node.shapes.size() > 8) {
-      heavyCount++;
-    }
-
-    for (int i = 0; i < depth; i++)
-      std::cout << "  ";
-
-    const Vector3 size = node.box.size();
-    const Vector3 center = node.box.center();
-
-    std::cout << "Node(depth=" << depth << ", tris=" << node.shapes.size()
-              << ", center=[" << center.x() << ", " << center.y() << ", "
-              << center.z() << "]"
-              << ", size=[" << size.x() << ", " << size.y() << ", " << size.z()
-              << "])";
-
-    if (node.shapes.size() > 8)
-      std::cout << " <--- HEAVY";
-    if (node.shapes.empty() && !node.childA && !node.childB)
-      std::cout << " <--- USELESS LEAF";
-
-    std::cout << "\n";
-
-    if (node.childA)
-      printNode(*node.childA, depth + 1, emptyCount, heavyCount);
-
-    if (node.childB)
-      printNode(*node.childB, depth + 1, emptyCount, heavyCount);
-  }
-
-  float intersect(const math::Ray &ray, const Node &node, float tMin,
-                  float tMax, T &tr) const {
-    float tBox;
-    if (!intersectBB(ray, node.box, tMin, tMax, tBox))
-      return tMax;
-
-    if (node.shapes.empty()) {
-      // Internal Node (or empty leaf)
-      if (!node.childA && !node.childB)
-        return tMax;
-
-      // Ensure children exist before dereferencing
-      T trA;
-      T trB;
-
-      float tHitA = tMax;
-      if (node.childA)
-        tHitA = intersect(ray, *node.childA, tMin, tMax, trA);
-
-      float searchMaxB = std::min(tMax, tHitA);
-      float tHitB = tMax;
-      if (node.childB)
-        tHitB = intersect(ray, *node.childB, tMin, searchMaxB, trB);
-
-      if (tHitB < tHitA) {
-        tr = trB;
-        return tHitB;
-      } else {
-        tr = trA;
-        return tHitA;
-      }
-    } else {
-      // Leaf Node with shapes
-      float closestT = tMax;
-      for (const auto &triangle : node.shapes) {
-        float t = math::intersect(ray, triangle, tMin, closestT);
-        if (t < closestT) {
-          closestT = t;
-          tr = triangle;
+        if (depth > 20 || count <= 2) {
+            return;
         }
-      }
-      return closestT;
-    }
-  }
+        Vector3 extent = nodes_[nodeIdx].box.size();
+        int axis = 0;
+        if (extent.y() > extent.x()) axis = 1;
+        if (extent.z() > extent[axis]) axis = 2;
 
-  std::unique_ptr<Node> root_;
+        float splitPos = nodes_[nodeIdx].box.min()[axis] + extent[axis] * 0.5f;
+
+        auto beginIt = triangles_.begin() + first;
+        auto endIt = beginIt + count;
+
+        auto midIt = std::partition(beginIt, endIt, [axis, splitPos](const T& t) {
+            return math::center(t)[axis] < splitPos;
+        });
+
+        uint32_t leftCount = (uint32_t)std::distance(beginIt, midIt);
+
+        if (leftCount == 0 || leftCount == count) {
+            return;
+        }
+
+        size_t leftChildIdx = nodes_.size();
+        nodes_.emplace_back();
+        nodes_.emplace_back();
+        
+        nodes_[leftChildIdx].leftFirst = first;
+        nodes_[leftChildIdx].count = leftCount;
+        nodes_[leftChildIdx].box = math::BBox();
+        for (uint32_t i = 0; i < leftCount; ++i) {
+            nodes_[leftChildIdx].box.growTo(triangles_[first + i]);
+        }
+
+        size_t rightChildIdx = leftChildIdx + 1;
+        nodes_[rightChildIdx].leftFirst = first + leftCount;
+        nodes_[rightChildIdx].count = count - leftCount;
+        nodes_[rightChildIdx].box = math::BBox();
+        for (uint32_t i = 0; i < nodes_[rightChildIdx].count; ++i) {
+            nodes_[rightChildIdx].box.growTo(triangles_[nodes_[rightChildIdx].leftFirst + i]);
+        }
+
+        nodes_[nodeIdx].leftFirst = (uint32_t)leftChildIdx;
+        nodes_[nodeIdx].count = 0;
+
+        split(leftChildIdx, depth + 1);
+        split(rightChildIdx, depth + 1);
+    }
 };

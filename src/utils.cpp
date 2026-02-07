@@ -140,8 +140,8 @@ namespace math {
 
 float randomFloat()
 {
-	static std::uniform_real_distribution<float> distribution(0.0, 1.0);
-	static std::mt19937 generator;
+	thread_local std::uniform_real_distribution<float> distribution(0.0, 1.0);
+	thread_local std::mt19937 generator;
 	return distribution(generator);
 }
 
