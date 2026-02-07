@@ -230,6 +230,7 @@ namespace {
 			std::optional<int> camera;
 			std::optional<int> mesh;
 			Vector3 translation{ 0,0,0 };
+			Vector3 scale{ 1,1,1 };
 			Vector4 rotation{ 0,0,0,1 };
 		};
 
@@ -615,8 +616,9 @@ namespace {
 				{
 					n.mesh = (int)el.getAs<float>("mesh");
 				}
-				n.rotation = el.getAs<Vector4>("rotation");
+				n.rotation = el.getAs<Vector4>("rotation", Vector4(0.0f, 0.0f, 0.0f, 1.0f ));
 				n.translation = el.getAs<Vector3>("translation");
+				n.scale = el.getAs<Vector3>("scale", Vector3(1.0f, 1.0f, 1.0f));
 
 				nodes.push_back(n);
 			}
@@ -915,7 +917,7 @@ namespace gltf {
 							else if (semantic == "TANGENT") {} // VEC4 float
 						}
 					}
-					Matrix4 nodeWorld = computeLocalMatrix(node.translation, Vector3(1.0f, 1.0f, 1.0f), Quaternion({ node.rotation.x(), node.rotation.y(), node.rotation.z(), node.rotation.w() }));
+					Matrix4 nodeWorld = computeLocalMatrix(node.translation, node.scale, Quaternion({ node.rotation.x(), node.rotation.y(), node.rotation.z(), node.rotation.w() }));
 
 					std::vector<math::Triangle> triangles;
 					for (int i = 0; i < indices.size(); )
@@ -933,12 +935,14 @@ namespace gltf {
 			}
 			else if (node.camera.has_value())
 			{
+				
+				Matrix4 local = computeLocalMatrix(node.translation, node.scale, Quaternion({ node.rotation.x(), node.rotation.y(), node.rotation.z(), node.rotation.w() }));
 				Camera c;
 				c.fov = gltfScene.cameras[*node.camera].yfov;
-				c.up = Vector3(0.0f, 1.0f, 0.0f);
+				c.up = transformVector(local, Vector3(0, 1, 0));
 				c.aspectRatio = gltfScene.cameras[*node.camera].aspectRatio;
 
-				Matrix4 local = computeLocalMatrix(node.translation, Vector3(1.0f, 1.0f, 1.0f), Quaternion({ node.rotation.x(), node.rotation.y(), node.rotation.z(), node.rotation.w() }));
+				
 				c.pos = transformPoint(local, Vector3(0.0f, 0.0f, 0.0f));
 				Vector3 forward = transformVector(local, Vector3(0, 0, -1));
 				c.target = c.pos + forward;

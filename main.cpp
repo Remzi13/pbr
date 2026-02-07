@@ -314,7 +314,8 @@ void display_progress(int total_pixels) {
 
 int main() {
   Scene scene;
-  gltf::parse("../scenes/07-scene-easy.gltf", scene);
+  //gltf::parse("../scenes/07-scene-easy.gltf", scene);
+  gltf::parse("../scenes/07-scene-medium-2.gltf", scene);
 
   const float aspectRatio = scene.camera().aspectRatio;
   const std::uint16_t width = 600;
@@ -338,7 +339,7 @@ int main() {
   data.resize(width * height);
 
   // const int SIDE_SAMPLE_COUNT = scene.samples();
-  const int SIDE_SAMPLE_COUNT = 64;
+  const int SIDE_SAMPLE_COUNT = 8;
   auto start = std::chrono::high_resolution_clock::now();
 
   TaskManager manager(8, 32);
