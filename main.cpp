@@ -238,6 +238,11 @@ int main(int argc, char* argv[]) {
         printf("Error: Could not create SDL_Texture (%dx%d): %s\n", settings.width, settings.height, SDL_GetError());
     }
     std::vector<uint32_t> pixels(settings.width * settings.height, 0xFF000000);
+    
+    struct NodeState {
+        float translation[3] = {0,0,0};
+    };
+    std::vector<NodeState> nodeStates(scene.nodes().size());
 
     TaskManager taskManager(8, 32);
 
@@ -322,6 +327,84 @@ int main(int argc, char* argv[]) {
             }
             if (ImGui::Button("Save Image") && completed_pixels.load() > 0) {
                 saveImageToFile(settings.width, settings.height, renderData);
+            }
+            ImGui::End();
+        }
+
+        {
+            ImGui::Begin("Scene Editor");
+            if (ImGui::CollapsingHeader("Materials")) {
+                auto& materials = scene.materials();
+                for (size_t i = 0; i < materials.size(); ++i) {
+                    ImGui::PushID((int)i);
+                    ImGui::Text("Material %zu: %s", i, materials[i].name.c_str());
+                    bool changed = false;
+                    changed |= ImGui::ColorEdit3("Albedo", (float*)&materials[i].albedo);
+                    changed |= ImGui::ColorEdit3("Emission", (float*)&materials[i].emission);
+                    changed |= ImGui::SliderFloat("Metallic", &materials[i].metallic, 0.0f, 1.0f);
+                    changed |= ImGui::SliderFloat("Roughness", &materials[i].roughness, 0.0f, 1.0f);
+                    
+                    if (changed && settings.rendering) {
+                        startRender();
+                    }
+                    
+                    ImGui::Separator();
+                    ImGui::PopID();
+                }
+            }
+            if (ImGui::CollapsingHeader("Objects")) {
+                auto& nodes = scene.nodes();
+                auto& materials = scene.materials();
+                for (size_t i = 0; i < nodes.size(); ++i) {
+                    ImGui::PushID((int)(i + 1000));
+                    ImGui::Text("Node: %s", nodes[i].name.c_str());
+                    
+                    int matIdx = 0;
+                    if (!nodes[i].triangles.empty()) {
+                        matIdx = (int)nodes[i].triangles[0].matIndex;
+                    }
+
+                    if (ImGui::BeginCombo("Material", materials[matIdx].name.empty() ? ("Material " + std::to_string(matIdx)).c_str() : materials[matIdx].name.c_str())) {
+                        for (int m = 0; m < (int)materials.size(); m++) {
+                            bool isSelected = (matIdx == m);
+                            std::string matName = materials[m].name;
+                            if (matName.empty()) matName = "Material " + std::to_string(m);
+                            if (ImGui::Selectable(matName.c_str(), isSelected)) {
+                                for (auto& tr : nodes[i].triangles) {
+                                    tr.matIndex = (size_t)m;
+                                }
+                                nodes[i].rebuild();
+                                if (settings.rendering) startRender();
+                            }
+                            if (isSelected) ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::EndCombo();
+                    }
+
+                    float currentPos[3] = {nodeStates[i].translation[0], nodeStates[i].translation[1], nodeStates[i].translation[2]};
+                    if (ImGui::DragFloat3("Translation", currentPos, 0.1f)) {
+                        Vector3 delta(currentPos[0] - nodeStates[i].translation[0], 
+                                      currentPos[1] - nodeStates[i].translation[1], 
+                                      currentPos[2] - nodeStates[i].translation[2]);
+                        
+                        nodeStates[i].translation[0] = currentPos[0];
+                        nodeStates[i].translation[1] = currentPos[1];
+                        nodeStates[i].translation[2] = currentPos[2];
+                        
+                        for (auto& tr : nodes[i].triangles) {
+                            tr.a += delta;
+                            tr.b += delta;
+                            tr.c += delta;
+                        }
+                        nodes[i].rebuild();
+                        // Reset rendering if something moved
+                        if (settings.rendering) {
+                            startRender();
+                        }
+                    }
+                    ImGui::Separator();
+                    ImGui::PopID();
+                }
             }
             ImGui::End();
         }

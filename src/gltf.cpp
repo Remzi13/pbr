@@ -975,6 +975,7 @@ namespace gltf {
 		for (const auto& m : gltfScene.materials)
 		{
 			Material mat;
+			mat.name = m.name;
 			mat.albedo = Vector3(m.baseColorFactor.x(), m.baseColorFactor.y(), m.baseColorFactor.z());
 			mat.emission = m.emissiveFactor * m.emissiveStrength;
 			mat.metallic = m.metallicFactor;

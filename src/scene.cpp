@@ -3,6 +3,16 @@
 #include <string>
 
 
+void Scene::Node::rebuild()
+{
+    bbox = math::BBox();
+    for (const auto& t : triangles)
+    {
+        bbox.growTo(t);
+    }
+    bvh.build(triangles);
+}
+
 Scene::Node::Node(const std::string& n, const std::vector<math::Triangle>& tr) : name(n), triangles(tr)
 { 
 	for (const auto& t : triangles)
